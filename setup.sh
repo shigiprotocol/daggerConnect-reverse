@@ -377,107 +377,116 @@ install_client() {
         *) PROFILE="balanced" ;;
     esac
 
-    # Connection paths
-    echo ""
-    echo -e "${CYAN}═══════════════════════════════════════${NC}"
-    echo -e "${CYAN}      CONNECTION PATHS${NC}"
-    echo -e "${CYAN}═══════════════════════════════════════${NC}"
-    PATHS=""
-    COUNT=0
-    while true; do
-        echo ""
-        echo -e "${YELLOW}Add Connection Path #$((COUNT+1))${NC}"
-
-        echo "Select Transport Type:"
-        echo "  1) tcpmux  - TCP Multiplexing"
-        echo "  2) kcpmux  - KCP Multiplexing (UDP based)"
-        echo "  3) wsmux   - WebSocket"
-        echo "  4) wssmux  - WebSocket Secure (TLS)"
-        echo ""
-        read -p "Choice [1-4]: " transport_choice
-        case $transport_choice in
-            1) T="tcpmux" ;;
-            2) T="kcpmux" ;;
-            3) T="wsmux" ;;
-            4) T="wssmux" ;;
-            *) T="tcpmux" ;;
-        esac
-
-        read -p "Server address with Tunnel Port (e.g., 1.2.3.4:2020): " ADDR
-        if [ -z "$ADDR" ]; then
-            echo -e "${RED}Address cannot be empty!${NC}"
-            continue
-        fi
-
-        read -p "Connection pool size [2]: " POOL
-        POOL=${POOL:-2}
-
-        read -p "Enable aggressive pool? [y/N]: " AGG
-        [[ $AGG =~ ^[Yy]$ ]] && AGG_POOL="true" || AGG_POOL="false"
-
-        if [ $COUNT -eq 0 ]; then
-            PATHS="  - transport: \"$T\"\n    addr: \"$ADDR\"\n    connection_pool: $POOL\n    aggressive_pool: $AGG_POOL\n    retry_interval: 3\n    dial_timeout: 10"
-        else
-            PATHS="$PATHS\n  - transport: \"$T\"\n    addr: \"$ADDR\"\n    connection_pool: $POOL\n    aggressive_pool: $AGG_POOL\n    retry_interval: 3\n    dial_timeout: 10"
-        fi
-        COUNT=$((COUNT+1))
-
-        echo -e "${GREEN}✓ Path added: $T -> $ADDR (pool: $POOL, aggressive: $AGG_POOL)${NC}"
-
-        read -p "Add another path? [y/N]: " MORE
-        [[ ! $MORE =~ ^[Yy]$ ]] && break
-    done
-
-    # Verbose
-    echo ""
-    read -p "Enable verbose logging? [y/N]: " VERBOSE
-    [[ $VERBOSE =~ ^[Yy]$ ]] && VERBOSE="true" || VERBOSE="false"
-
-    # Write config
-    CONFIG_FILE="$CONFIG_DIR/client.yaml"
-    cat > "$CONFIG_FILE" << EOF
-mode: "client"
-psk: "${PSK}"
-profile: "${PROFILE}"
-verbose: ${VERBOSE}
-
-paths:
-$PATHS
-
-smux:
-  keepalive: 8
-  max_recv: 8388608
-  max_stream: 8388608
-  frame_size: 32768
-  version: 2
-
-kcp:
-  nodelay: 1
-  interval: 10
-  resend: 2
-  nc: 1
-  sndwnd: 1024
-  rcvwnd: 1024
-  mtu: 1400
-
-advanced:
-  tcp_nodelay: true
-  tcp_keepalive: 15
-  tcp_read_buffer: 8388608
-  tcp_write_buffer: 8388608
-  websocket_read_buffer: 262144
-  websocket_write_buffer: 262144
-  websocket_compression: false
-  cleanup_interval: 3
-  session_timeout: 30
-  connection_timeout: 60
-  stream_timeout: 120
-  max_connections: 2000
-  max_udp_flows: 1000
-  udp_flow_timeout: 300
-  udp_buffer_size: 4194304
-
-heartbeat: 10
+   echo ""
+   echo -e "${CYAN}═══════════════════════════════════════${NC}"
+   echo -e "${CYAN}      CONNECTION PATHS${NC}"
+   echo -e "${CYAN}═══════════════════════════════════════${NC}"
+   
+   # تغییر: از آرایه استفاده کنید
+   declare -a PATH_ENTRIES=()
+   COUNT=0
+   
+   while true; do
+       echo ""
+       echo -e "${YELLOW}Add Connection Path #$((COUNT+1))${NC}"
+   
+       echo "Select Transport Type:"
+       echo "  1) tcpmux  - TCP Multiplexing"
+       echo "  2) kcpmux  - KCP Multiplexing (UDP based)"
+       echo "  3) wsmux   - WebSocket"
+       echo "  4) wssmux  - WebSocket Secure (TLS)"
+       echo ""
+       read -p "Choice [1-4]: " transport_choice
+       case $transport_choice in
+           1) T="tcpmux" ;;
+           2) T="kcpmux" ;;
+           3) T="wsmux" ;;
+           4) T="wssmux" ;;
+           *) T="tcpmux" ;;
+       esac
+   
+       read -p "Server address with Tunnel Port (e.g., 1.2.3.4:2020): " ADDR
+       if [ -z "$ADDR" ]; then
+           echo -e "${RED}Address cannot be empty!${NC}"
+           continue
+       fi
+   
+       read -p "Connection pool size [2]: " POOL
+       POOL=${POOL:-2}
+   
+       read -p "Enable aggressive pool? [y/N]: " AGG
+       [[ $AGG =~ ^[Yy]$ ]] && AGG_POOL="true" || AGG_POOL="false"
+   
+       # ذخیره در آرایه
+       PATH_ENTRIES+=("  - transport: \"$T\"
+       addr: \"$ADDR\"
+       connection_pool: $POOL
+       aggressive_pool: $AGG_POOL
+       retry_interval: 3
+       dial_timeout: 10")
+   
+       COUNT=$((COUNT+1))
+       echo -e "${GREEN}✓ Path added: $T -> $ADDR (pool: $POOL, aggressive: $AGG_POOL)${NC}"
+   
+       read -p "Add another path? [y/N]: " MORE
+       [[ ! $MORE =~ ^[Yy]$ ]] && break
+   done
+   
+   # Verbose
+   echo ""
+   read -p "Enable verbose logging? [y/N]: " VERBOSE
+   [[ $VERBOSE =~ ^[Yy]$ ]] && VERBOSE="true" || VERBOSE="false"
+   
+   CONFIG_FILE="$CONFIG_DIR/client.yaml"
+   cat > "$CONFIG_FILE" << EOF
+   mode: "client"
+   psk: "${PSK}"
+   profile: "${PROFILE}"
+   verbose: ${VERBOSE}
+   
+   paths:
+   EOF
+   
+   for path_entry in "${PATH_ENTRIES[@]}"; do
+       printf "%s\n" "$path_entry" >> "$CONFIG_FILE"
+   done
+   
+   cat >> "$CONFIG_FILE" << 'EOF'
+   
+   smux:
+     keepalive: 8
+     max_recv: 8388608
+     max_stream: 8388608
+     frame_size: 32768
+     version: 2
+   
+   kcp:
+     nodelay: 1
+     interval: 10
+     resend: 2
+     nc: 1
+     sndwnd: 1024
+     rcvwnd: 1024
+     mtu: 1400
+   
+   advanced:
+     tcp_nodelay: true
+     tcp_keepalive: 15
+     tcp_read_buffer: 8388608
+     tcp_write_buffer: 8388608
+     websocket_read_buffer: 262144
+     websocket_write_buffer: 262144
+     websocket_compression: false
+     cleanup_interval: 3
+     session_timeout: 30
+     connection_timeout: 60
+     stream_timeout: 120
+     max_connections: 2000
+     max_udp_flows: 1000
+     udp_flow_timeout: 300
+     udp_buffer_size: 4194304
+   
+   heartbeat: 10
 EOF
 
     create_systemd_service "client"
