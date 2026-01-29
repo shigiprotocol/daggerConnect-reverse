@@ -87,9 +87,9 @@
 ### نصب خودکار با اسکریپت Installer
 
 ```bash
-wget -O bash.sh https://raw.githubusercontent.com/itsFLoKi/DaggerConnect/main/bash.sh
-chmod +x bash.sh
-sudo bash bash.sh
+wget -O setup.sh https://raw.githubusercontent.com/itsFLoKi/DaggerConnect/main/setup.sh
+chmod +x setup.sh
+sudo bash setup.sh
 ```
 
 ### 📦 نصب دستی
@@ -714,7 +714,7 @@ pidstat -p $(pgrep DaggerConnect) 1
 ### آپدیت از طریق Installer
 
 ```bash
-sudo bash bash.sh
+sudo bash setup.sh
 # گزینه 4) Update Core را انتخاب کنید
 ```
 
