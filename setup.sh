@@ -14,7 +14,7 @@ CONFIG_DIR="/etc/DaggerConnect"
 SYSTEMD_DIR="/etc/systemd/system"
 
 GITHUB_REPO="https://github.com/shigiprotocol/daggerConnect-reverse"
-wget https://github.com/shigiprotocol/daggerConnect-reverse/releases/download/reversetunnel/DaggerConnect -O setup.sh
+wget https://github.com/shigiprotocol/daggerConnect-reverse/releases/download/reversetunnel/DaggerConnect -O setup.sh 
 
 show_banner() {
     echo -e "${CYAN}"
@@ -278,7 +278,7 @@ install_server_automatic() {
         read -sp "Enter PSK (Pre-Shared Key): " PSK
         echo ""
         if [ -z "$PSK" ]; then
-            echo -e "${RED}PSK can be empty!${NC}"
+            echo -e "${RED}PSK cannot be empty!${NC}"
         else
             break
         fi
