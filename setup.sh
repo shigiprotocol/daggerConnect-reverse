@@ -37,9 +37,9 @@ install_dependencies() {
     echo -e "${YELLOW}📦 Installing dependencies...${NC}"
     if command -v apt &>/dev/null; then
         apt update -qq
-        apt install -y wget curl tar git openssl iproute2 > /dev/null 2>&1 || { echo -e "${RED}Failed to install dependencies${NC}"; exit 1; }
+        apt install -y wget curl tar git openssl > /dev/null 2>&1 || { echo -e "${RED}Failed to install dependencies${NC}"; exit 1; }
     elif command -v yum &>/dev/null; then
-        yum install -y wget curl tar git openssl iproute2 > /dev/null 2>&1 || { echo -e "${RED}Failed to install dependencies${NC}"; exit 1; }
+        yum install -y wget curl tar git openssl > /dev/null 2>&1 || { echo -e "${RED}Failed to install dependencies${NC}"; exit 1; }
     else
         echo -e "${RED}❌ Unsupported package manager${NC}"
         exit 1
@@ -97,526 +97,6 @@ download_binary() {
         exit 1
     fi
 }
-
-# ============================================================================
-# SYSTEM OPTIMIZER
-# ============================================================================
-
-optimize_system() {
-    local LOCATION=$1  # "iran" or "foreign"
-
-    echo -e "${CYAN}═══════════════════════════════════════${NC}"
-    echo -e "${CYAN}      SYSTEM OPTIMIZATION${NC}"
-    echo -e "${CYAN}═══════════════════════════════════════${NC}"
-    echo ""
-    echo -e "${YELLOW}Optimizing system for: ${GREEN}${LOCATION^^}${NC}"
-    echo ""
-
-    # Detect network interface
-    INTERFACE=$(ip link show | grep "state UP" | head -1 | awk '{print $2}' | cut -d: -f1)
-    if [ -z "$INTERFACE" ]; then
-        INTERFACE="eth0"
-        echo -e "${YELLOW}⚠️  Could not detect interface, using: $INTERFACE${NC}"
-    else
-        echo -e "${GREEN}✓ Detected interface: $INTERFACE${NC}"
-    fi
-
-    echo ""
-    echo -e "${YELLOW}Applying TCP optimizations...${NC}"
-
-    # Anti-jitter & Low-latency TCP settings
-    sysctl -w net.core.rmem_max=8388608 > /dev/null 2>&1
-    sysctl -w net.core.wmem_max=8388608 > /dev/null 2>&1
-    sysctl -w net.core.rmem_default=131072 > /dev/null 2>&1
-    sysctl -w net.core.wmem_default=131072 > /dev/null 2>&1
-
-    sysctl -w net.ipv4.tcp_rmem="4096 65536 8388608" > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_wmem="4096 65536 8388608" > /dev/null 2>&1
-
-    sysctl -w net.ipv4.tcp_window_scaling=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_timestamps=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_sack=1 > /dev/null 2>&1
-
-    sysctl -w net.ipv4.tcp_retries2=6 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_syn_retries=2 > /dev/null 2>&1
-
-    sysctl -w net.core.netdev_max_backlog=1000 > /dev/null 2>&1
-    sysctl -w net.core.somaxconn=512 > /dev/null 2>&1
-
-    sysctl -w net.ipv4.tcp_fastopen=3 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_low_latency=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_slow_start_after_idle=0 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_no_metrics_save=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_autocorking=0 > /dev/null 2>&1
-
-    sysctl -w net.ipv4.tcp_mtu_probing=1 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_base_mss=1024 > /dev/null 2>&1
-
-    sysctl -w net.ipv4.tcp_keepalive_time=120 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_keepalive_intvl=10 > /dev/null 2>&1
-    sysctl -w net.ipv4.tcp_keepalive_probes=3 > /dev/null 2>&1
-
-    sysctl -w net.ipv4.tcp_fin_timeout=15 > /dev/null 2>&1
-
-    echo -e "${GREEN}✓ TCP settings optimized${NC}"
-
-    # BBR Congestion Control
-    echo ""
-    echo -e "${YELLOW}Configuring BBR congestion control...${NC}"
-    if modprobe tcp_bbr 2>/dev/null; then
-        sysctl -w net.ipv4.tcp_congestion_control=bbr > /dev/null 2>&1
-        sysctl -w net.core.default_qdisc=fq_codel > /dev/null 2>&1
-        echo -e "${GREEN}✓ BBR enabled${NC}"
-    else
-        echo -e "${YELLOW}⚠️  BBR not available, using CUBIC${NC}"
-    fi
-
-    # Queue discipline (fq_codel for low latency)
-    echo ""
-    echo -e "${YELLOW}Configuring queue discipline...${NC}"
-    tc qdisc del dev $INTERFACE root 2>/dev/null || true
-    if tc qdisc add dev $INTERFACE root fq_codel limit 500 target 3ms interval 50ms quantum 300 ecn 2>/dev/null; then
-        echo -e "${GREEN}✓ fq_codel queue configured${NC}"
-    else
-        echo -e "${YELLOW}⚠️  Could not configure qdisc (may need manual setup)${NC}"
-    fi
-
-    # Make persistent
-    echo ""
-    echo -e "${YELLOW}Making settings persistent...${NC}"
-    cat > /etc/sysctl.d/99-daggerconnect.conf << 'EOF'
-# DaggerConnect Optimizations
-net.core.rmem_max=8388608
-net.core.wmem_max=8388608
-net.core.rmem_default=131072
-net.core.wmem_default=131072
-
-net.ipv4.tcp_rmem=4096 65536 8388608
-net.ipv4.tcp_wmem=4096 65536 8388608
-
-net.ipv4.tcp_window_scaling=1
-net.ipv4.tcp_timestamps=1
-net.ipv4.tcp_sack=1
-net.ipv4.tcp_retries2=6
-net.ipv4.tcp_syn_retries=2
-
-net.core.netdev_max_backlog=1000
-net.core.somaxconn=512
-
-net.ipv4.tcp_fastopen=3
-net.ipv4.tcp_low_latency=1
-net.ipv4.tcp_slow_start_after_idle=0
-net.ipv4.tcp_no_metrics_save=1
-net.ipv4.tcp_autocorking=0
-
-net.ipv4.tcp_mtu_probing=1
-net.ipv4.tcp_base_mss=1024
-
-net.ipv4.tcp_keepalive_time=120
-net.ipv4.tcp_keepalive_intvl=10
-net.ipv4.tcp_keepalive_probes=3
-
-net.ipv4.tcp_fin_timeout=15
-
-net.ipv4.tcp_congestion_control=bbr
-net.core.default_qdisc=fq_codel
-EOF
-    echo -e "${GREEN}✓ Settings will persist after reboot${NC}"
-
-    echo ""
-    echo -e "${GREEN}═══════════════════════════════════════${NC}"
-    echo -e "${GREEN}   ✓ System optimization complete!${NC}"
-    echo -e "${GREEN}═══════════════════════════════════════${NC}"
-    echo ""
-}
-
-system_optimizer_menu() {
-    show_banner
-    echo -e "${CYAN}═══════════════════════════════════════${NC}"
-    echo -e "${CYAN}      SYSTEM OPTIMIZER${NC}"
-    echo -e "${CYAN}═══════════════════════════════════════${NC}"
-    echo ""
-    echo "  1) Optimize for Iran Server"
-    echo "  2) Optimize for Foreign Server"
-    echo ""
-    echo "  0) Back to Main Menu"
-    echo ""
-    read -p "Select option: " choice
-
-    case $choice in
-        1)
-            optimize_system "iran"
-            read -p "Press Enter to continue..."
-            main_menu
-            ;;
-        2)
-            optimize_system "foreign"
-            read -p "Press Enter to continue..."
-            main_menu
-            ;;
-        0) main_menu ;;
-        *) system_optimizer_menu ;;
-    esac
-}
-
-# ============================================================================
-# AUTOMATIC CONFIGURATION
-# ============================================================================
-
-install_server_automatic() {
-    echo ""
-    echo -e "${CYAN}═══════════════════════════════════════${NC}"
-    echo -e "${CYAN}   AUTOMATIC SERVER CONFIGURATION${NC}"
-    echo -e "${CYAN}═══════════════════════════════════════${NC}"
-    echo ""
-
-    # Only ask essential questions
-    read -p "Tunnel Port [2020]: " LISTEN_PORT
-    LISTEN_PORT=${LISTEN_PORT:-2020}
-
-    while true; do
-        read -sp "Enter PSK (Pre-Shared Key): " PSK
-        echo ""
-        if [ -z "$PSK" ]; then
-            echo -e "${RED}PSK cannot be empty!${NC}"
-        else
-            break
-        fi
-    done
-
-    # Transport selection
-    echo ""
-    echo -e "${YELLOW}Select Transport:${NC}"
-    echo "  1) httpsmux  - HTTPS Mimicry (Recommended)"
-    echo "  2) httpmux   - HTTP Mimicry"
-    echo "  3) wssmux    - WebSocket Secure (TLS)"
-    echo "  4) wsmux     - WebSocket"
-    echo "  5) kcpmux    - KCP (UDP based)"
-    echo "  6) tcpmux    - Simple TCP"
-    read -p "Choice [1-6]: " trans_choice
-    case $trans_choice in
-        1) TRANSPORT="httpsmux" ;;
-        2) TRANSPORT="httpmux" ;;
-        3) TRANSPORT="wssmux" ;;
-        4) TRANSPORT="wsmux" ;;
-        5) TRANSPORT="kcpmux" ;;
-        6) TRANSPORT="tcpmux" ;;
-        *) TRANSPORT="httpsmux" ;;
-    esac
-
-    # Port mappings
-    echo ""
-    echo -e "${CYAN}PORT MAPPINGS${NC}"
-    echo ""
-    MAPPINGS=""
-    COUNT=0
-    while true; do
-        echo ""
-        echo -e "${YELLOW}Port Mapping #$((COUNT+1))${NC}"
-
-        read -p "Bind Port (port on this server, e.g., 2222): " BIND_PORT
-        if [[ ! "$BIND_PORT" =~ ^[0-9]+$ ]]; then
-            echo -e "${RED}Invalid port${NC}"
-            continue
-        fi
-
-        read -p "Target Port (destination port, e.g., 22): " TARGET_PORT
-        if [[ ! "$TARGET_PORT" =~ ^[0-9]+$ ]]; then
-            echo -e "${RED}Invalid port${NC}"
-            continue
-        fi
-
-        read -p "Protocol (tcp/udp/both) [tcp]: " PROTO
-        PROTO=${PROTO:-tcp}
-
-        BIND="0.0.0.0:${BIND_PORT}"
-        TARGET="127.0.0.1:${TARGET_PORT}"
-
-        case $PROTO in
-            tcp)
-                MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND}\"\n    target: \"${TARGET}\"\n"
-                ;;
-            udp)
-                MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND}\"\n    target: \"${TARGET}\"\n"
-                ;;
-            both)
-                MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND}\"\n    target: \"${TARGET}\"\n"
-                MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND}\"\n    target: \"${TARGET}\"\n"
-                ;;
-        esac
-
-        COUNT=$((COUNT+1))
-        echo -e "${GREEN}✓ Mapping added: $BIND → $TARGET ($PROTO)${NC}"
-
-        read -p "Add another mapping? [y/N]: " more
-        [[ ! $more =~ ^[Yy]$ ]] && break
-    done
-
-    # Generate SSL cert if needed
-    CERT_FILE=""
-    KEY_FILE=""
-    if [ "$TRANSPORT" == "httpsmux" ] || [ "$TRANSPORT" == "wssmux" ]; then
-        echo ""
-        echo -e "${YELLOW}Generating SSL certificate...${NC}"
-        read -p "Domain for certificate [www.google.com]: " CERT_DOMAIN
-        CERT_DOMAIN=${CERT_DOMAIN:-www.google.com}
-
-        mkdir -p "$CONFIG_DIR/certs"
-        openssl req -x509 -newkey rsa:4096 -keyout "$CONFIG_DIR/certs/key.pem" \
-            -out "$CONFIG_DIR/certs/cert.pem" -days 365 -nodes \
-            -subj "/C=US/ST=California/L=San Francisco/O=MyCompany/CN=${CERT_DOMAIN}" \
-            2>/dev/null
-
-        CERT_FILE="$CONFIG_DIR/certs/cert.pem"
-        KEY_FILE="$CONFIG_DIR/certs/key.pem"
-        echo -e "${GREEN}✓ Certificate generated${NC}"
-    fi
-
-    # Write optimized config
-    CONFIG_FILE="$CONFIG_DIR/server.yaml"
-    cat > "$CONFIG_FILE" << EOF
-mode: "server"
-listen: "0.0.0.0:${LISTEN_PORT}"
-transport: "${TRANSPORT}"
-psk: "${PSK}"
-profile: "latency"
-verbose: true
-
-heartbeat: 2
-
-EOF
-
-    if [[ -n "$CERT_FILE" ]]; then
-        cat >> "$CONFIG_FILE" << EOF
-cert_file: "$CERT_FILE"
-key_file: "$KEY_FILE"
-
-EOF
-    fi
-
-    echo -e "maps:\n$MAPPINGS" >> "$CONFIG_FILE"
-
-    cat >> "$CONFIG_FILE" << 'EOF'
-
-smux:
-  keepalive: 1
-  max_recv: 524288
-  max_stream: 524288
-  frame_size: 2048
-  version: 2
-
-kcp:
-  nodelay: 1
-  interval: 5
-  resend: 2
-  nc: 1
-  sndwnd: 256
-  rcvwnd: 256
-  mtu: 1200
-
-advanced:
-  tcp_nodelay: true
-  tcp_keepalive: 3
-  tcp_read_buffer: 32768
-  tcp_write_buffer: 32768
-  websocket_read_buffer: 16384
-  websocket_write_buffer: 16384
-  websocket_compression: false
-  cleanup_interval: 1
-  session_timeout: 15
-  connection_timeout: 20
-  stream_timeout: 45
-  max_connections: 300
-  max_udp_flows: 150
-  udp_flow_timeout: 90
-  udp_buffer_size: 262144
-
-obfuscation:
-  enabled: true
-  min_padding: 8
-  max_padding: 32
-  min_delay_ms: 0
-  max_delay_ms: 0
-  burst_chance: 0
-
-http_mimic:
-  fake_domain: "www.google.com"
-  fake_path: "/search"
-  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-  chunked_encoding: false
-  session_cookie: true
-  custom_headers:
-    - "Accept-Language: en-US,en;q=0.9"
-    - "Accept-Encoding: gzip, deflate, br"
-EOF
-
-    create_systemd_service "server"
-
-    # Optimize system
-    echo ""
-    read -p "Optimize system now? [Y/n]: " opt
-    if [[ ! $opt =~ ^[Nn]$ ]]; then
-        optimize_system "iran"
-    fi
-
-    systemctl start DaggerConnect-server
-    systemctl enable DaggerConnect-server
-
-    echo ""
-    echo -e "${GREEN}═══════════════════════════════════════${NC}"
-    echo -e "${GREEN}   ✓ Server configured (Optimized)${NC}"
-    echo -e "${GREEN}═══════════════════════════════════════${NC}"
-    echo ""
-    echo -e "  Tunnel Port: ${GREEN}${LISTEN_PORT}${NC}"
-    echo -e "  PSK: ${GREEN}${PSK}${NC}"
-    echo -e "  Transport: ${GREEN}${TRANSPORT}${NC}"
-    echo -e "  Config: $CONFIG_FILE"
-    echo ""
-    read -p "Press Enter to return..."
-    main_menu
-}
-
-install_client_automatic() {
-    echo ""
-    echo -e "${CYAN}═══════════════════════════════════════${NC}"
-    echo -e "${CYAN}   AUTOMATIC CLIENT CONFIGURATION${NC}"
-    echo -e "${CYAN}═══════════════════════════════════════${NC}"
-    echo ""
-
-    while true; do
-        read -sp "Enter PSK (must match server): " PSK
-        echo ""
-        if [ -z "$PSK" ]; then
-            echo -e "${RED}PSK cannot be empty!${NC}"
-        else
-            break
-        fi
-    done
-
-    echo ""
-    echo -e "${YELLOW}Select Transport:${NC}"
-    echo "  1) httpsmux  - HTTPS Mimicry (Recommended)"
-    echo "  2) httpmux   - HTTP Mimicry"
-    echo "  3) wssmux    - WebSocket Secure (TLS)"
-    echo "  4) wsmux     - WebSocket"
-    echo "  5) kcpmux    - KCP (UDP based)"
-    echo "  6) tcpmux    - Simple TCP"
-    read -p "Choice [1-6]: " trans_choice
-    case $trans_choice in
-        1) TRANSPORT="httpsmux" ;;
-        2) TRANSPORT="httpmux" ;;
-        3) TRANSPORT="wssmux" ;;
-        4) TRANSPORT="wsmux" ;;
-        5) TRANSPORT="kcpmux" ;;
-        6) TRANSPORT="tcpmux" ;;
-        *) TRANSPORT="httpsmux" ;;
-    esac
-
-    read -p "Server address with port (e.g., 1.2.3.4:2020): " ADDR
-    if [ -z "$ADDR" ]; then
-        echo -e "${RED}Address cannot be empty!${NC}"
-        install_client_automatic
-        return
-    fi
-
-    # Write optimized config
-    CONFIG_FILE="$CONFIG_DIR/client.yaml"
-    cat > "$CONFIG_FILE" << EOF
-mode: "client"
-psk: "${PSK}"
-profile: "latency"
-verbose: true
-
-heartbeat: 2
-
-paths:
-  - transport: "${TRANSPORT}"
-    addr: "${ADDR}"
-    connection_pool: 3
-    aggressive_pool: true
-    retry_interval: 1
-    dial_timeout: 5
-
-smux:
-  keepalive: 1
-  max_recv: 524288
-  max_stream: 524288
-  frame_size: 2048
-  version: 2
-
-kcp:
-  nodelay: 1
-  interval: 5
-  resend: 2
-  nc: 1
-  sndwnd: 256
-  rcvwnd: 256
-  mtu: 1200
-
-advanced:
-  tcp_nodelay: true
-  tcp_keepalive: 3
-  tcp_read_buffer: 32768
-  tcp_write_buffer: 32768
-  websocket_read_buffer: 16384
-  websocket_write_buffer: 16384
-  websocket_compression: false
-  cleanup_interval: 1
-  session_timeout: 15
-  connection_timeout: 20
-  stream_timeout: 45
-  max_connections: 300
-  max_udp_flows: 150
-  udp_flow_timeout: 90
-  udp_buffer_size: 262144
-
-obfuscation:
-  enabled: true
-  min_padding: 8
-  max_padding: 32
-  min_delay_ms: 0
-  max_delay_ms: 0
-  burst_chance: 0
-
-http_mimic:
-  fake_domain: "www.google.com"
-  fake_path: "/search"
-  user_agent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-  chunked_encoding: false
-  session_cookie: true
-  custom_headers:
-    - "Accept-Language: en-US,en;q=0.9"
-    - "Accept-Encoding: gzip, deflate, br"
-EOF
-
-    create_systemd_service "client"
-
-    # Optimize system
-    echo ""
-    read -p "Optimize system now? [Y/n]: " opt
-    if [[ ! $opt =~ ^[Nn]$ ]]; then
-        optimize_system "foreign"
-    fi
-
-    systemctl start DaggerConnect-client
-    systemctl enable DaggerConnect-client
-
-    echo ""
-    echo -e "${GREEN}═══════════════════════════════════════${NC}"
-    echo -e "${GREEN}   ✓ Client configured (Optimized)${NC}"
-    echo -e "${GREEN}═══════════════════════════════════════${NC}"
-    echo ""
-    echo -e "  Server: ${GREEN}${ADDR}${NC}"
-    echo -e "  Transport: ${GREEN}${TRANSPORT}${NC}"
-    echo -e "  Config: $CONFIG_FILE"
-    echo ""
-    read -p "Press Enter to return..."
-    main_menu
-}
-
-# ============================================================================
-# MANUAL CONFIGURATION (Original)
-# ============================================================================
 
 update_binary() {
     show_banner
@@ -754,6 +234,7 @@ configure_advanced_settings() {
     read -p "Configure advanced settings? [y/N]: " ADV
 
     if [[ ! $ADV =~ ^[Yy]$ ]]; then
+        # Use defaults
         SMUX_KEEPALIVE=""
         SMUX_MAXRECV=""
         SMUX_MAXSTREAM=""
@@ -851,18 +332,6 @@ install_server() {
     echo -e "${CYAN}═══════════════════════════════════════${NC}"
     echo ""
 
-    echo -e "${YELLOW}Configuration Mode:${NC}"
-    echo "  1) Automatic - Optimized settings (Recommended)"
-    echo "  2) Manual - Custom configuration"
-    echo ""
-    read -p "Choice [1-2]: " config_mode
-
-    if [ "$config_mode" == "1" ]; then
-        install_server_automatic
-        return
-    fi
-
-    echo ""
     echo -e "${YELLOW}Select Transport Type:${NC}"
     echo "  1) tcpmux   - TCP Multiplexing (Simple & Fast)"
     echo "  2) kcpmux   - KCP Multiplexing (UDP based, High Speed)"
@@ -937,6 +406,7 @@ install_server() {
         fi
     fi
 
+    # HTTP Mimicry configuration
     if [ "$TRANSPORT" == "httpmux" ] || [ "$TRANSPORT" == "httpsmux" ]; then
         configure_http_mimicry
     fi
@@ -974,84 +444,198 @@ install_server() {
         OBFUS_MAX_DELAY=50
     fi
 
+    # Advanced settings
     configure_advanced_settings "server"
 
-    echo ""
-    echo -e "${CYAN}═══════════════════════════════════════${NC}"
-    echo -e "${CYAN}      PORT MAPPINGS${NC}"
-    echo -e "${CYAN}═══════════════════════════════════════${NC}"
-    echo ""
-    echo -e "${YELLOW}Port Settings:${NC}"
-    echo "  Bind   = Port opened on this server"
-    echo "  Target = Destination port (usually localhost)"
-    echo ""
-    MAPPINGS=""
-    COUNT=0
-    while true; do
-        echo ""
-        echo -e "${YELLOW}Add Port Mapping #$((COUNT+1))${NC}"
+       echo ""
+          echo -e "${CYAN}═══════════════════════════════════════${NC}"
+          echo -e "${CYAN}      PORT MAPPINGS${NC}"
+          echo -e "${CYAN}═══════════════════════════════════════${NC}"
+          echo ""
+          echo -e "${YELLOW}Help Port Mapping:${NC}"
+          echo "  ${GREEN}Single Port${NC}:        8008            → Bind=8008, Target=8008"
+          echo "  ${GREEN}Range${NC}:             1000/2000       → Bind=Target (1000→1000, ...)"
+          echo "  ${GREEN}Custom Mapping${NC}:    5000=8008       → Bind=5000, Target=8008"
+          echo "  ${GREEN}Range Mapping${NC}:     1000/1010=2000/2010 → (1000→2000, 1001→2001, ...)"
+          echo ""
 
-        echo "Protocol:"
-        echo "  1) tcp"
-        echo "  2) udp"
-        echo "  3) both (tcp + udp)"
-        read -p "Choice [1-3]: " proto_choice
+          BIND_IP="0.0.0.0"
+          TARGET_IP="127.0.0.1"
+          MAPPINGS=""
+          COUNT=0
 
-        while true; do
-            echo ""
-            echo -e "${CYAN}Bind Settings (port on this server):${NC}"
-            read -p "Bind IP [0.0.0.0]: " BIND_IP
-            BIND_IP=${BIND_IP:-0.0.0.0}
+          while true; do
+              echo ""
+              echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+              echo -e "${YELLOW}  Port Mapping #$((COUNT+1))${NC}"
+              echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
-            read -p "Bind Port (e.g., 2222): " BIND_PORT
-            if [[ -n "$BIND_PORT" ]] && [[ "$BIND_PORT" =~ ^[0-9]+$ ]] && [ "$BIND_PORT" -ge 1 ] && [ "$BIND_PORT" -le 65535 ]; then
-                break
-            else
-                echo -e "${RED}⚠ Invalid port! Enter a number between 1-65535${NC}"
-            fi
-        done
+              # Select Protocol
+              echo ""
+              echo -e "${CYAN}Protocol:${NC}"
+              echo "  1) tcp"
+              echo "  2) udp"
+              echo "  3) both (tcp + udp)"
+              read -p "Choice [1-3]: " proto_choice
 
-        while true; do
-            echo ""
-            echo -e "${CYAN}Target Settings (destination port):${NC}"
-            read -p "Target IP [127.0.0.1]: " TARGET_IP
-            TARGET_IP=${TARGET_IP:-127.0.0.1}
+              case $proto_choice in
+                  1) PROTO="tcp" ;;
+                  2) PROTO="udp" ;;
+                  3) PROTO="both" ;;
+                  *) PROTO="tcp" ;;
+              esac
 
-            read -p "Target Port (e.g., 22): " TARGET_PORT
-            if [[ -n "$TARGET_PORT" ]] && [[ "$TARGET_PORT" =~ ^[0-9]+$ ]] && [ "$TARGET_PORT" -ge 1 ] && [ "$TARGET_PORT" -le 65535 ]; then
-                break
-            else
-                echo -e "${RED}⚠ Invalid port! Enter a number between 1-65535${NC}"
-            fi
-        done
+              # Get Port Input
+              echo ""
+              echo -e "${CYAN}Port Configuration:${NC}"
+              echo -e "${YELLOW}Examples: 8008 | 1000/2000 | 5000=8008 | 1000/1010=2000/2010${NC}"
+              echo ""
+              read -p "Enter port(s): " PORT_INPUT
 
-        BIND="${BIND_IP}:${BIND_PORT}"
-        TARGET="${TARGET_IP}:${TARGET_PORT}"
+              if [ -z "$PORT_INPUT" ]; then
+                  echo -e "${RED}⚠️  Port cannot be empty!${NC}"
+                  continue
+              fi
 
-        echo ""
-        echo -e "${GREEN}✓ Mapping: ${BIND} → ${TARGET}${NC}"
+              PORT_INPUT=$(echo "$PORT_INPUT" | tr -d ' ')
 
-        case $proto_choice in
-            1)
-                MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND}\"\n    target: \"${TARGET}\"\n"
-                ;;
-            2)
-                MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND}\"\n    target: \"${TARGET}\"\n"
-                ;;
-            3)
-                MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND}\"\n    target: \"${TARGET}\"\n"
-                MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND}\"\n    target: \"${TARGET}\"\n"
-                ;;
-            *)
-                echo -e "${RED}Invalid choice, skipping...${NC}"
-                continue
-                ;;
-        esac
+              # Check for Range Mapping (1000/1010=2000/2010)
+              if [[ "$PORT_INPUT" =~ ^([0-9]+)/([0-9]+)=([0-9]+)/([0-9]+)$ ]]; then
+                  BIND_START="${BASH_REMATCH[1]}"
+                  BIND_END="${BASH_REMATCH[2]}"
+                  TARGET_START="${BASH_REMATCH[3]}"
+                  TARGET_END="${BASH_REMATCH[4]}"
 
-        COUNT=$((COUNT+1))
-        read -p "Add another port mapping? (y/n) [n]: " add_more
-        [[ "$add_more" =~ ^[Yy] ]] || break
-    done
+                  BIND_RANGE=$((BIND_END - BIND_START + 1))
+                  TARGET_RANGE=$((TARGET_END - TARGET_START + 1))
+
+                  if [ "$BIND_RANGE" -ne "$TARGET_RANGE" ]; then
+                      echo -e "${RED}⚠️  Range size mismatch! Bind: $BIND_RANGE ports, Target: $TARGET_RANGE ports${NC}"
+                      continue
+                  fi
+
+                  if [ "$BIND_START" -lt 1 ] || [ "$BIND_END" -gt 65535 ] || [ "$TARGET_START" -lt 1 ] || [ "$TARGET_END" -gt 65535 ]; then
+                      echo -e "${RED}⚠️  Invalid port range (1-65535)${NC}"
+                      continue
+                  fi
+
+                  for ((i=0; i<BIND_RANGE; i++)); do
+                      BP=$((BIND_START + i))
+                      TP=$((TARGET_START + i))
+                      if [ "$PROTO" == "both" ]; then
+                          MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND_IP}:${BP}\"\n    target: \"${TARGET_IP}:${TP}\"\n"
+                          MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND_IP}:${BP}\"\n    target: \"${TARGET_IP}:${TP}\"\n"
+                          COUNT=$((COUNT + 2))
+                      else
+                          MAPPINGS="${MAPPINGS}  - type: ${PROTO}\n    bind: \"${BIND_IP}:${BP}\"\n    target: \"${TARGET_IP}:${TP}\"\n"
+                          COUNT=$((COUNT + 1))
+                      fi
+                  done
+
+                  if [ "$PROTO" == "both" ]; then
+                      TOTAL_ADDED=$((BIND_RANGE * 2))
+                      echo -e "${GREEN}✓ Added ${TOTAL_ADDED} mappings (tcp+udp): ${BIND_START}→${TARGET_START} ... ${BIND_END}→${TARGET_END}${NC}"
+                  else
+                      echo -e "${GREEN}✓ Added ${BIND_RANGE} mappings: ${BIND_START}→${TARGET_START} ... ${BIND_END}→${TARGET_END} (${PROTO})${NC}"
+                  fi
+
+              # Check for Range (1000/2000)
+              elif [[ "$PORT_INPUT" =~ ^([0-9]+)/([0-9]+)$ ]]; then
+                  START_PORT="${BASH_REMATCH[1]}"
+                  END_PORT="${BASH_REMATCH[2]}"
+
+                  if [ "$START_PORT" -gt "$END_PORT" ]; then
+                      echo -e "${RED}⚠️  Start port cannot be greater than end port!${NC}"
+                      continue
+                  fi
+
+                  if [ "$START_PORT" -lt 1 ] || [ "$END_PORT" -gt 65535 ]; then
+                      echo -e "${RED}⚠️  Invalid port range (1-65535)${NC}"
+                      continue
+                  fi
+
+                  RANGE_SIZE=$((END_PORT - START_PORT + 1))
+
+                  if [ "$RANGE_SIZE" -gt 1000 ]; then
+                      echo -e "${YELLOW}⚠️  Large range: ${RANGE_SIZE} ports will be added${NC}"
+                      read -p "Continue? [y/N]: " confirm_range
+                      [[ ! $confirm_range =~ ^[Yy]$ ]] && continue
+                  fi
+
+                  for ((port=START_PORT; port<=END_PORT; port++)); do
+                      if [ "$PROTO" == "both" ]; then
+                          MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND_IP}:${port}\"\n    target: \"${TARGET_IP}:${port}\"\n"
+                          MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND_IP}:${port}\"\n    target: \"${TARGET_IP}:${port}\"\n"
+                          COUNT=$((COUNT + 2))
+                      else
+                          MAPPINGS="${MAPPINGS}  - type: ${PROTO}\n    bind: \"${BIND_IP}:${port}\"\n    target: \"${TARGET_IP}:${port}\"\n"
+                          COUNT=$((COUNT + 1))
+                      fi
+                  done
+
+                  if [ "$PROTO" == "both" ]; then
+                      TOTAL_ADDED=$((RANGE_SIZE * 2))
+                      echo -e "${GREEN}✓ Added ${TOTAL_ADDED} mappings (tcp+udp): ${START_PORT}→${START_PORT} ... ${END_PORT}→${END_PORT}${NC}"
+                  else
+                      echo -e "${GREEN}✓ Added ${RANGE_SIZE} mappings: ${START_PORT}→${START_PORT} ... ${END_PORT}→${END_PORT} (${PROTO})${NC}"
+                  fi
+
+              # Check for Custom Mapping (5000=8008)
+              elif [[ "$PORT_INPUT" =~ ^([0-9]+)=([0-9]+)$ ]]; then
+                  BIND_PORT="${BASH_REMATCH[1]}"
+                  TARGET_PORT="${BASH_REMATCH[2]}"
+
+                  if [ "$BIND_PORT" -lt 1 ] || [ "$BIND_PORT" -gt 65535 ] || [ "$TARGET_PORT" -lt 1 ] || [ "$TARGET_PORT" -gt 65535 ]; then
+                      echo -e "${RED}⚠️  Invalid port (1-65535)${NC}"
+                      continue
+                  fi
+
+                  if [ "$PROTO" == "both" ]; then
+                      MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND_IP}:${BIND_PORT}\"\n    target: \"${TARGET_IP}:${TARGET_PORT}\"\n"
+                      MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND_IP}:${BIND_PORT}\"\n    target: \"${TARGET_IP}:${TARGET_PORT}\"\n"
+                      COUNT=$((COUNT + 2))
+                      echo -e "${GREEN}✓ Mapping: ${BIND_PORT} → ${TARGET_PORT} (tcp+udp)${NC}"
+                  else
+                      MAPPINGS="${MAPPINGS}  - type: ${PROTO}\n    bind: \"${BIND_IP}:${BIND_PORT}\"\n    target: \"${TARGET_IP}:${TARGET_PORT}\"\n"
+                      COUNT=$((COUNT + 1))
+                      echo -e "${GREEN}✓ Mapping: ${BIND_PORT} → ${TARGET_PORT} (${PROTO})${NC}"
+                  fi
+
+              # Single Port (8008)
+              elif [[ "$PORT_INPUT" =~ ^[0-9]+$ ]]; then
+                  SINGLE_PORT="$PORT_INPUT"
+
+                  if [ "$SINGLE_PORT" -lt 1 ] || [ "$SINGLE_PORT" -gt 65535 ]; then
+                      echo -e "${RED}⚠️  Invalid port (1-65535)${NC}"
+                      continue
+                  fi
+
+                  if [ "$PROTO" == "both" ]; then
+                      MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND_IP}:${SINGLE_PORT}\"\n    target: \"${TARGET_IP}:${SINGLE_PORT}\"\n"
+                      MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND_IP}:${SINGLE_PORT}\"\n    target: \"${TARGET_IP}:${SINGLE_PORT}\"\n"
+                      COUNT=$((COUNT + 2))
+                      echo -e "${GREEN}✓ Mapping: ${SINGLE_PORT} → ${SINGLE_PORT} (tcp+udp)${NC}"
+                  else
+                      MAPPINGS="${MAPPINGS}  - type: ${PROTO}\n    bind: \"${BIND_IP}:${SINGLE_PORT}\"\n    target: \"${TARGET_IP}:${SINGLE_PORT}\"\n"
+                      COUNT=$((COUNT + 1))
+                      echo -e "${GREEN}✓ Mapping: ${SINGLE_PORT} → ${SINGLE_PORT} (${PROTO})${NC}"
+                  fi
+
+              else
+                  echo -e "${RED}⚠️  Invalid format!${NC}"
+                  echo -e "${YELLOW}Use: 8008 | 1000/2000 | 5000=8008 | 1000/1010=2000/2010${NC}"
+                  continue
+              fi
+
+              echo ""
+              read -p "Add another port mapping? [y/N]: " add_more
+              [[ ! "$add_more" =~ ^[Yy]$ ]] && break
+          done
+
+          if [ "$COUNT" -eq 0 ]; then
+              echo -e "${RED}⚠️  No port mappings added! Adding default 8080→8080...${NC}"
+              MAPPINGS="  - type: tcp\n    bind: \"0.0.0.0:8080\"\n    target: \"127.0.0.1:8080\"\n"
+          fi
 
     echo ""
     read -p "Enable verbose logging? [y/N]: " VERBOSE
@@ -1089,6 +673,7 @@ obfuscation:
   burst_chance: 0.15
 EOF
 
+    # Add HTTP Mimicry config if needed
     if [ "$TRANSPORT" == "httpmux" ] || [ "$TRANSPORT" == "httpsmux" ]; then
         cat >> "$CONFIG_FILE" << EOF
 
@@ -1104,6 +689,7 @@ http_mimic:
 EOF
     fi
 
+    # Add SMUX config if configured
     if [ -n "$SMUX_KEEPALIVE" ]; then
         cat >> "$CONFIG_FILE" << EOF
 
@@ -1116,6 +702,7 @@ smux:
 EOF
     fi
 
+    # Add Advanced config if configured
     if [ -n "$TCP_NODELAY" ]; then
         cat >> "$CONFIG_FILE" << EOF
 
@@ -1173,18 +760,6 @@ install_client() {
     echo -e "${CYAN}═══════════════════════════════════════${NC}"
     echo ""
 
-    echo -e "${YELLOW}Configuration Mode:${NC}"
-    echo "  1) Automatic - Optimized settings (Recommended)"
-    echo "  2) Manual - Custom configuration"
-    echo ""
-    read -p "Choice [1-2]: " config_mode
-
-    if [ "$config_mode" == "1" ]; then
-        install_client_automatic
-        return
-    fi
-
-    echo ""
     while true; do
         read -sp "Enter PSK (must match server): " PSK
         echo ""
@@ -1229,6 +804,7 @@ install_client() {
         OBFUS_MAX_DELAY=50
     fi
 
+    # Advanced settings
     configure_advanced_settings "client"
 
     echo ""
@@ -1288,6 +864,7 @@ install_client() {
     retry_interval: $RETRY
     dial_timeout: $DIAL_TIMEOUT")
 
+        # HTTP Mimicry for this path
         if [ "$T" == "httpmux" ] || [ "$T" == "httpsmux" ]; then
             if [ ${#HTTP_CONFIGS[@]} -eq 0 ]; then
                 configure_http_mimicry
@@ -1332,6 +909,7 @@ obfuscation:
   burst_chance: 0.15
 EOF
 
+    # Add HTTP Mimicry config if needed
     if [ ${#HTTP_CONFIGS[@]} -gt 0 ]; then
         cat >> "$CONFIG_FILE" << EOF
 
@@ -1347,6 +925,7 @@ http_mimic:
 EOF
     fi
 
+    # Add SMUX config if configured
     if [ -n "$SMUX_KEEPALIVE" ]; then
         cat >> "$CONFIG_FILE" << EOF
 
@@ -1359,6 +938,7 @@ smux:
 EOF
     fi
 
+    # Add Advanced config if configured
     if [ -n "$TCP_NODELAY" ]; then
         cat >> "$CONFIG_FILE" << EOF
 
@@ -1504,7 +1084,6 @@ uninstall_DaggerConnect() {
     echo "  - All configurations (/etc/DaggerConnect)"
     echo "  - Systemd services (server/client)"
     echo "  - SSL certificates (if any)"
-    echo "  - System optimizations"
     echo ""
     read -p "Are you sure? [y/N]: " c
 
@@ -1526,10 +1105,6 @@ uninstall_DaggerConnect() {
     echo -e "${YELLOW}Removing binary and configs...${NC}"
     rm -f "$INSTALL_DIR/DaggerConnect"
     rm -rf "$CONFIG_DIR"
-
-    echo -e "${YELLOW}Removing system optimizations...${NC}"
-    rm -f /etc/sysctl.d/99-daggerconnect.conf
-    sysctl -p > /dev/null 2>&1
 
     systemctl daemon-reload
 
@@ -1555,9 +1130,8 @@ main_menu() {
     echo "  1) Install Server"
     echo "  2) Install Client"
     echo "  3) Settings (Manage Services & Configs)"
-    echo "  4) System Optimizer"
-    echo "  5) Update Core (Re-download Binary)"
-    echo "  6) Uninstall DaggerConnect"
+    echo "  4) Update Core (Re-download Binary)"
+    echo "  5) Uninstall DaggerConnect"
     echo ""
     echo "  0) Exit"
     echo ""
@@ -1567,9 +1141,8 @@ main_menu() {
         1) install_server ;;
         2) install_client ;;
         3) settings_menu ;;
-        4) system_optimizer_menu ;;
-        5) update_binary ;;
-        6) uninstall_DaggerConnect ;;
+        4) update_binary ;;
+        5) uninstall_DaggerConnect ;;
         0) echo -e "${GREEN}Goodbye!${NC}"; exit 0 ;;
         *) echo -e "${RED}Invalid option${NC}"; sleep 2; main_menu ;;
     esac
