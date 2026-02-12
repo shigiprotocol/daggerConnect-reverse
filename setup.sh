@@ -13,7 +13,7 @@ INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/DaggerConnect"
 SYSTEMD_DIR="/etc/systemd/system"
 
-GITHUB_REPO="https://github.com/shigiprotocol/DaggerConnect"
+GITHUB_REPO="https://github.com/shigiprotocol/daggerConnect-reverse"
 wget https://github.com/shigiprotocol/daggerConnect-reverse/releases/download/reversetunnel/DaggerConnect -O setup.sh
 
 show_banner() {
