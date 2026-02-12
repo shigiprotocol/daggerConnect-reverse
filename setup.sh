@@ -13,8 +13,8 @@ INSTALL_DIR="/usr/local/bin"
 CONFIG_DIR="/etc/DaggerConnect"
 SYSTEMD_DIR="/etc/systemd/system"
 
-GITHUB_REPO="https://github.com/itsFLoKi/DaggerConnect"
-LATEST_RELEASE_API="https://api.github.com/repos/itsFLoKi/DaggerConnect/releases/latest"
+GITHUB_REPO="https://github.com/shigiprotocol/DaggerConnect"
+wget https://github.com/shigiprotocol/daggerConnect-reverse/releases/download/reversetunnel/DaggerConnect -O setup.sh
 
 show_banner() {
     echo -e "${CYAN}"
@@ -68,7 +68,7 @@ download_binary() {
         LATEST_VERSION="v1.0"
     fi
 
-    BINARY_URL="https://github.com/itsFLoKi/DaggerConnect/releases/download/${LATEST_VERSION}/DaggerConnect"
+    BINARY_URL="https://github.com/shigiprotocol/daggerConnect-reverse/releases/download/reversetunnel/DaggerConnect"
 
     echo -e "${CYAN}📦 Latest version: ${GREEN}${LATEST_VERSION}${NC}"
 
@@ -278,7 +278,7 @@ install_server_automatic() {
         read -sp "Enter PSK (Pre-Shared Key): " PSK
         echo ""
         if [ -z "$PSK" ]; then
-            echo -e "${RED}PSK cannot be empty!${NC}"
+            echo -e "${RED}PSK can be empty!${NC}"
         else
             break
         fi
@@ -305,195 +305,52 @@ install_server_automatic() {
     esac
 
     # Port mappings
-   echo ""
-             echo -e "${CYAN}═══════════════════════════════════════${NC}"
-             echo -e "${CYAN}      PORT MAPPINGS${NC}"
-             echo -e "${CYAN}═══════════════════════════════════════${NC}"
-             echo ""
-             echo -e "${YELLOW}Help Port Mapping:${NC}"
-             echo "  ${GREEN}Single Port${NC}:        8008            → Bind=8008, Target=8008"
-             echo "  ${GREEN}Range${NC}:             1000/2000       → Bind=Target (1000→1000, ...)"
-             echo "  ${GREEN}Custom Mapping${NC}:    5000=8008       → Bind=5000, Target=8008"
-             echo "  ${GREEN}Range Mapping${NC}:     1000/1010=2000/2010 → (1000→2000, 1001→2001, ...)"
-             echo ""
+    echo ""
+    echo -e "${CYAN}PORT MAPPINGS${NC}"
+    echo ""
+    MAPPINGS=""
+    COUNT=0
+    while true; do
+        echo ""
+        echo -e "${YELLOW}Port Mapping #$((COUNT+1))${NC}"
 
-             BIND_IP="0.0.0.0"
-             TARGET_IP="127.0.0.1"
-             MAPPINGS=""
-             COUNT=0
+        read -p "Bind Port (port on this server, e.g., 2222): " BIND_PORT
+        if [[ ! "$BIND_PORT" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Invalid port${NC}"
+            continue
+        fi
 
-             while true; do
-                 echo ""
-                 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
-                 echo -e "${YELLOW}  Port Mapping #$((COUNT+1))${NC}"
-                 echo -e "${YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+        read -p "Target Port (destination port, e.g., 22): " TARGET_PORT
+        if [[ ! "$TARGET_PORT" =~ ^[0-9]+$ ]]; then
+            echo -e "${RED}Invalid port${NC}"
+            continue
+        fi
 
-                 # Select Protocol
-                 echo ""
-                 echo -e "${CYAN}Protocol:${NC}"
-                 echo "  1) tcp"
-                 echo "  2) udp"
-                 echo "  3) both (tcp + udp)"
-                 read -p "Choice [1-3]: " proto_choice
+        read -p "Protocol (tcp/udp/both) [tcp]: " PROTO
+        PROTO=${PROTO:-tcp}
 
-                 case $proto_choice in
-                     1) PROTO="tcp" ;;
-                     2) PROTO="udp" ;;
-                     3) PROTO="both" ;;
-                     *) PROTO="tcp" ;;
-                 esac
+        BIND="0.0.0.0:${BIND_PORT}"
+        TARGET="127.0.0.1:${TARGET_PORT}"
 
-                 # Get Port Input
-                 echo ""
-                 echo -e "${CYAN}Port Configuration:${NC}"
-                 echo -e "${YELLOW}Examples: 8008 | 1000/2000 | 5000=8008 | 1000/1010=2000/2010${NC}"
-                 echo ""
-                 read -p "Enter port(s): " PORT_INPUT
+        case $PROTO in
+            tcp)
+                MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND}\"\n    target: \"${TARGET}\"\n"
+                ;;
+            udp)
+                MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND}\"\n    target: \"${TARGET}\"\n"
+                ;;
+            both)
+                MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND}\"\n    target: \"${TARGET}\"\n"
+                MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND}\"\n    target: \"${TARGET}\"\n"
+                ;;
+        esac
 
-                 if [ -z "$PORT_INPUT" ]; then
-                     echo -e "${RED}⚠️  Port cannot be empty!${NC}"
-                     continue
-                 fi
+        COUNT=$((COUNT+1))
+        echo -e "${GREEN}✓ Mapping added: $BIND → $TARGET ($PROTO)${NC}"
 
-                 PORT_INPUT=$(echo "$PORT_INPUT" | tr -d ' ')
-
-                 # Check for Range Mapping (1000/1010=2000/2010)
-                 if [[ "$PORT_INPUT" =~ ^([0-9]+)/([0-9]+)=([0-9]+)/([0-9]+)$ ]]; then
-                     BIND_START="${BASH_REMATCH[1]}"
-                     BIND_END="${BASH_REMATCH[2]}"
-                     TARGET_START="${BASH_REMATCH[3]}"
-                     TARGET_END="${BASH_REMATCH[4]}"
-
-                     BIND_RANGE=$((BIND_END - BIND_START + 1))
-                     TARGET_RANGE=$((TARGET_END - TARGET_START + 1))
-
-                     if [ "$BIND_RANGE" -ne "$TARGET_RANGE" ]; then
-                         echo -e "${RED}⚠️  Range size mismatch! Bind: $BIND_RANGE ports, Target: $TARGET_RANGE ports${NC}"
-                         continue
-                     fi
-
-                     if [ "$BIND_START" -lt 1 ] || [ "$BIND_END" -gt 65535 ] || [ "$TARGET_START" -lt 1 ] || [ "$TARGET_END" -gt 65535 ]; then
-                         echo -e "${RED}⚠️  Invalid port range (1-65535)${NC}"
-                         continue
-                     fi
-
-                     for ((i=0; i<BIND_RANGE; i++)); do
-                         BP=$((BIND_START + i))
-                         TP=$((TARGET_START + i))
-                         if [ "$PROTO" == "both" ]; then
-                             MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND_IP}:${BP}\"\n    target: \"${TARGET_IP}:${TP}\"\n"
-                             MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND_IP}:${BP}\"\n    target: \"${TARGET_IP}:${TP}\"\n"
-                             COUNT=$((COUNT + 2))
-                         else
-                             MAPPINGS="${MAPPINGS}  - type: ${PROTO}\n    bind: \"${BIND_IP}:${BP}\"\n    target: \"${TARGET_IP}:${TP}\"\n"
-                             COUNT=$((COUNT + 1))
-                         fi
-                     done
-
-                     if [ "$PROTO" == "both" ]; then
-                         TOTAL_ADDED=$((BIND_RANGE * 2))
-                         echo -e "${GREEN}✓ Added ${TOTAL_ADDED} mappings (tcp+udp): ${BIND_START}→${TARGET_START} ... ${BIND_END}→${TARGET_END}${NC}"
-                     else
-                         echo -e "${GREEN}✓ Added ${BIND_RANGE} mappings: ${BIND_START}→${TARGET_START} ... ${BIND_END}→${TARGET_END} (${PROTO})${NC}"
-                     fi
-
-                 # Check for Range (1000/2000)
-                 elif [[ "$PORT_INPUT" =~ ^([0-9]+)/([0-9]+)$ ]]; then
-                     START_PORT="${BASH_REMATCH[1]}"
-                     END_PORT="${BASH_REMATCH[2]}"
-
-                     if [ "$START_PORT" -gt "$END_PORT" ]; then
-                         echo -e "${RED}⚠️  Start port cannot be greater than end port!${NC}"
-                         continue
-                     fi
-
-                     if [ "$START_PORT" -lt 1 ] || [ "$END_PORT" -gt 65535 ]; then
-                         echo -e "${RED}⚠️  Invalid port range (1-65535)${NC}"
-                         continue
-                     fi
-
-                     RANGE_SIZE=$((END_PORT - START_PORT + 1))
-
-                     if [ "$RANGE_SIZE" -gt 1000 ]; then
-                         echo -e "${YELLOW}⚠️  Large range: ${RANGE_SIZE} ports will be added${NC}"
-                         read -p "Continue? [y/N]: " confirm_range
-                         [[ ! $confirm_range =~ ^[Yy]$ ]] && continue
-                     fi
-
-                     for ((port=START_PORT; port<=END_PORT; port++)); do
-                         if [ "$PROTO" == "both" ]; then
-                             MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND_IP}:${port}\"\n    target: \"${TARGET_IP}:${port}\"\n"
-                             MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND_IP}:${port}\"\n    target: \"${TARGET_IP}:${port}\"\n"
-                             COUNT=$((COUNT + 2))
-                         else
-                             MAPPINGS="${MAPPINGS}  - type: ${PROTO}\n    bind: \"${BIND_IP}:${port}\"\n    target: \"${TARGET_IP}:${port}\"\n"
-                             COUNT=$((COUNT + 1))
-                         fi
-                     done
-
-                     if [ "$PROTO" == "both" ]; then
-                         TOTAL_ADDED=$((RANGE_SIZE * 2))
-                         echo -e "${GREEN}✓ Added ${TOTAL_ADDED} mappings (tcp+udp): ${START_PORT}→${START_PORT} ... ${END_PORT}→${END_PORT}${NC}"
-                     else
-                         echo -e "${GREEN}✓ Added ${RANGE_SIZE} mappings: ${START_PORT}→${START_PORT} ... ${END_PORT}→${END_PORT} (${PROTO})${NC}"
-                     fi
-
-                 # Check for Custom Mapping (5000=8008)
-                 elif [[ "$PORT_INPUT" =~ ^([0-9]+)=([0-9]+)$ ]]; then
-                     BIND_PORT="${BASH_REMATCH[1]}"
-                     TARGET_PORT="${BASH_REMATCH[2]}"
-
-                     if [ "$BIND_PORT" -lt 1 ] || [ "$BIND_PORT" -gt 65535 ] || [ "$TARGET_PORT" -lt 1 ] || [ "$TARGET_PORT" -gt 65535 ]; then
-                         echo -e "${RED}⚠️  Invalid port (1-65535)${NC}"
-                         continue
-                     fi
-
-                     if [ "$PROTO" == "both" ]; then
-                         MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND_IP}:${BIND_PORT}\"\n    target: \"${TARGET_IP}:${TARGET_PORT}\"\n"
-                         MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND_IP}:${BIND_PORT}\"\n    target: \"${TARGET_IP}:${TARGET_PORT}\"\n"
-                         COUNT=$((COUNT + 2))
-                         echo -e "${GREEN}✓ Mapping: ${BIND_PORT} → ${TARGET_PORT} (tcp+udp)${NC}"
-                     else
-                         MAPPINGS="${MAPPINGS}  - type: ${PROTO}\n    bind: \"${BIND_IP}:${BIND_PORT}\"\n    target: \"${TARGET_IP}:${TARGET_PORT}\"\n"
-                         COUNT=$((COUNT + 1))
-                         echo -e "${GREEN}✓ Mapping: ${BIND_PORT} → ${TARGET_PORT} (${PROTO})${NC}"
-                     fi
-
-                 # Single Port (8008)
-                 elif [[ "$PORT_INPUT" =~ ^[0-9]+$ ]]; then
-                     SINGLE_PORT="$PORT_INPUT"
-
-                     if [ "$SINGLE_PORT" -lt 1 ] || [ "$SINGLE_PORT" -gt 65535 ]; then
-                         echo -e "${RED}⚠️  Invalid port (1-65535)${NC}"
-                         continue
-                     fi
-
-                     if [ "$PROTO" == "both" ]; then
-                         MAPPINGS="${MAPPINGS}  - type: tcp\n    bind: \"${BIND_IP}:${SINGLE_PORT}\"\n    target: \"${TARGET_IP}:${SINGLE_PORT}\"\n"
-                         MAPPINGS="${MAPPINGS}  - type: udp\n    bind: \"${BIND_IP}:${SINGLE_PORT}\"\n    target: \"${TARGET_IP}:${SINGLE_PORT}\"\n"
-                         COUNT=$((COUNT + 2))
-                         echo -e "${GREEN}✓ Mapping: ${SINGLE_PORT} → ${SINGLE_PORT} (tcp+udp)${NC}"
-                     else
-                         MAPPINGS="${MAPPINGS}  - type: ${PROTO}\n    bind: \"${BIND_IP}:${SINGLE_PORT}\"\n    target: \"${TARGET_IP}:${SINGLE_PORT}\"\n"
-                         COUNT=$((COUNT + 1))
-                         echo -e "${GREEN}✓ Mapping: ${SINGLE_PORT} → ${SINGLE_PORT} (${PROTO})${NC}"
-                     fi
-
-                 else
-                     echo -e "${RED}⚠️  Invalid format!${NC}"
-                     echo -e "${YELLOW}Use: 8008 | 1000/2000 | 5000=8008 | 1000/1010=2000/2010${NC}"
-                     continue
-                 fi
-
-                 echo ""
-                 read -p "Add another port mapping? [y/N]: " add_more
-                 [[ ! "$add_more" =~ ^[Yy]$ ]] && break
-             done
-
-             if [ "$COUNT" -eq 0 ]; then
-                 echo -e "${RED}⚠️  No port mappings added! Adding default 8080→8080...${NC}"
-                 MAPPINGS="  - type: tcp\n    bind: \"0.0.0.0:8080\"\n    target: \"127.0.0.1:8080\"\n"
-             fi
+        read -p "Add another mapping? [y/N]: " more
+        [[ ! $more =~ ^[Yy]$ ]] && break
+    done
 
     # Generate SSL cert if needed
     CERT_FILE=""
