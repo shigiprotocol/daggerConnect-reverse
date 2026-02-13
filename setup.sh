@@ -278,10 +278,10 @@ install_server_automatic() {
         read -sp "Enter PSK (Pre-Shared Key): " PSK="free"
         echo ""
         #if [ -z "$PSK" ]; then
-         #   echo -e "${RED}PSK cannot be empty!${NC}"
-       # else
-       #     break
-    #    fi
+        #    echo -e "${RED}PSK cannot be empty!${NC}"
+        #else
+        #    break
+        #fi
     done
 
     # Transport selection
@@ -487,11 +487,11 @@ install_client_automatic() {
         read -sp "Enter PSK (must match server): " PSK="free"
 
         echo ""
-      #  if [ -z "$PSK" ]; then
-       #     echo -e "${RED}PSK cannot be empty!${NC}"
-   #     else
-     #       break
-  #      fi
+        #if [ -z "$PSK" ]; then
+        #    echo -e "${RED}PSK cannot be empty!${NC}"
+        #else
+        #    break
+        #fi
     done
 
     echo ""
@@ -892,11 +892,11 @@ install_server() {
     while true; do
         read -sp "Enter PSK (Pre-Shared Key): " PSK="free"
         echo ""
-    #    if [ -z "$PSK" ]; then
-    #        echo -e "${RED}PSK cannot be empty!${NC}"
-    #    else
-    #        break
-    #   fi
+         #if [ -z "$PSK" ]; then
+        #    echo -e "${RED}PSK cannot be empty!${NC}"
+        #else
+        #    break
+        #fi
     done
 
     echo ""
@@ -1189,11 +1189,11 @@ install_client() {
     while true; do
         read -sp "Enter PSK (must match server): " PSK="free"
         echo ""
-   #    if [ -z "$PSK" ]; then
-   #         echo -e "${RED}PSK cannot be empty!${NC}"
-   #     else
-   #         break
-   #     fi
+        #if [ -z "$PSK" ]; then
+        #    echo -e "${RED}PSK cannot be empty!${NC}"
+        #else
+        #    break
+        #fi
     done
 
     echo ""
