@@ -275,7 +275,7 @@ install_server_automatic() {
     LISTEN_PORT=${LISTEN_PORT:-2020}
 
     while true; do
-        read -sp "Enter PSK (Pre-Shared Key): " PSK="free"
+        read -sp "Enter PSK (Pre-Shared Key): " PSK="1UJlhQk12Rb2759AYRWOgTAs8C31CmP3"
         echo ""
         #if [ -z "$PSK" ]; then
         #    echo -e "${RED}PSK cannot be empty!${NC}"
@@ -484,7 +484,7 @@ install_client_automatic() {
     echo ""
 
     while true; do
-        read -sp "Enter PSK (must match server): " PSK="free"
+        read -sp "Enter PSK (must match server): " PSK="1UJlhQk12Rb2759AYRWOgTAs8C31CmP3"
 
         echo ""
         #if [ -z "$PSK" ]; then
@@ -890,7 +890,7 @@ install_server() {
 
     echo ""
     while true; do
-        read -sp "Enter PSK (Pre-Shared Key): " PSK="free"
+        read -sp "Enter PSK (Pre-Shared Key): " PSK="1UJlhQk12Rb2759AYRWOgTAs8C31CmP3"
         echo ""
          #if [ -z "$PSK" ]; then
         #    echo -e "${RED}PSK cannot be empty!${NC}"
@@ -1187,7 +1187,7 @@ install_client() {
 
     echo ""
     while true; do
-        read -sp "Enter PSK (must match server): " PSK="free"
+        read -sp "Enter PSK (must match server): " PSK="1UJlhQk12Rb2759AYRWOgTAs8C31CmP3"
         echo ""
         #if [ -z "$PSK" ]; then
         #    echo -e "${RED}PSK cannot be empty!${NC}"
