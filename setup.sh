@@ -275,9 +275,13 @@ install_server_automatic() {
     LISTEN_PORT=${LISTEN_PORT:-2020}
 
     while true; do
-        Hediyeshigi1&
-        PSK="${PSK:Hediyeshigi1&}"
-        break
+        read -sp "Enter PSK (Pre-Shared Key): " PSK
+        echo ""
+        if [ -z "$PSK" ]; then
+            echo -e "${RED}PSK cannot be empty!${NC}"
+        else
+            break
+        fi
     done
 
     # Transport selection
@@ -481,8 +485,12 @@ install_client_automatic() {
 
     while true; do
         read -sp "Enter PSK (must match server): " PSK
-        PSK="${PSK:Hediyeshigi1&}"
-        break
+        echo ""
+        if [ -z "$PSK" ]; then
+            echo -e "${RED}PSK cannot be empty!${NC}"
+        else
+            break
+        fi
     done
 
     echo ""
@@ -881,9 +889,13 @@ install_server() {
 
     echo ""
     while true; do
-        Hediyeshigi1&
-        PSK="${PSK:Hediyeshigi1&}"
-        break
+        read -sp "Enter PSK (Pre-Shared Key): " PSK
+        echo ""
+        if [ -z "$PSK" ]; then
+            echo -e "${RED}PSK cannot be empty!${NC}"
+        else
+            break
+        fi
     done
 
     echo ""
@@ -1175,8 +1187,12 @@ install_client() {
     echo ""
     while true; do
         read -sp "Enter PSK (must match server): " PSK
-        PSK="${PSK:Hediyeshigi1&}"
-        break
+        echo ""
+        if [ -z "$PSK" ]; then
+            echo -e "${RED}PSK cannot be empty!${NC}"
+        else
+            break
+        fi
     done
 
     echo ""
