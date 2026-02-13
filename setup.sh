@@ -275,14 +275,9 @@ install_server_automatic() {
     LISTEN_PORT=${LISTEN_PORT:-2020}
 
     while true; do
-        read -sp "Enter PSK (Pre-Shared Key): " PSK="1UJlhQk12Rb2759AYRWOgTAs8C31CmP3"
-        echo ""
-        #if [ -z "$PSK" ]; then
-        #    echo -e "${RED}PSK cannot be empty!${NC}"
-        #else
-        #    break
-        #fi
-    done
+        PSK="1UJlhQk12Rb2759AYRWOgTAs8C31CmP3"
+        break
+        done
 
     # Transport selection
     echo ""
@@ -484,15 +479,9 @@ install_client_automatic() {
     echo ""
 
     while true; do
-        read -sp "Enter PSK (must match server): " PSK="1UJlhQk12Rb2759AYRWOgTAs8C31CmP3"
-
-        echo ""
-        #if [ -z "$PSK" ]; then
-        #    echo -e "${RED}PSK cannot be empty!${NC}"
-        #else
-        #    break
-        #fi
-    done
+        PSK="1UJlhQk12Rb2759AYRWOgTAs8C31CmP3"
+        break
+        done
 
     echo ""
     echo -e "${YELLOW}Select Transport:${NC}"
@@ -890,14 +879,10 @@ install_server() {
 
     echo ""
     while true; do
-        read -sp "Enter PSK (Pre-Shared Key): " PSK="1UJlhQk12Rb2759AYRWOgTAs8C31CmP3"
-        echo ""
-         #if [ -z "$PSK" ]; then
-        #    echo -e "${RED}PSK cannot be empty!${NC}"
-        #else
-        #    break
-        #fi
-    done
+        while true; do
+        PSK="1UJlhQk12Rb2759AYRWOgTAs8C31CmP3"
+        break
+        done
 
     echo ""
     echo -e "${YELLOW}Select Performance Profile:${NC}"
@@ -1187,14 +1172,10 @@ install_client() {
 
     echo ""
     while true; do
-        read -sp "Enter PSK (must match server): " PSK="1UJlhQk12Rb2759AYRWOgTAs8C31CmP3"
-        echo ""
-        #if [ -z "$PSK" ]; then
-        #    echo -e "${RED}PSK cannot be empty!${NC}"
-        #else
-        #    break
-        #fi
-    done
+        while true; do
+        PSK="1UJlhQk12Rb2759AYRWOgTAs8C31CmP3"
+        break
+        done
 
     echo ""
     echo -e "${YELLOW}Select Performance Profile:${NC}"
